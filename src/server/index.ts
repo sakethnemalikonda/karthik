@@ -18,10 +18,13 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 5000;
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const isVercel = Boolean(process.env.VERCEL);
+const UPLOAD_DIR = process.env.UPLOAD_DIR || (isVercel ? '/tmp/uploads' : './uploads');
 
-// Initialize WebSockets
-initSocket(server);
+// Initialize WebSockets if not in serverless mode
+if (!isVercel) {
+  initSocket(server);
+}
 
 // Middleware
 app.use(cors({
@@ -43,6 +46,7 @@ app.get('/api/health', (_req, res) => {
     status: 'healthy',
     system: 'SmartGov Connect AI',
     version: '1.0.0',
+    environment: isVercel ? 'vercel-serverless' : 'standalone-node',
     timestamp: new Date().toISOString(),
   });
 });
@@ -55,27 +59,29 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
-// In production or when dist folder exists, serve client bundle
-const distPath = path.resolve('dist');
-app.use(express.static(distPath));
+// In standalone mode, serve client bundle from dist
+if (!isVercel) {
+  const distPath = path.resolve('dist');
+  app.use(express.static(distPath));
 
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
-    return next();
-  }
-  const indexPath = path.join(distPath, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      next();
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
+      return next();
     }
+    const indexPath = path.join(distPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        next();
+      }
+    });
   });
-});
+}
 
 // Global error handling
 app.use(errorHandler);
 
-// Start server if run directly
-if (process.env.NODE_ENV !== 'test') {
+// Start server if run directly (not in test or Vercel serverless environment)
+if (process.env.NODE_ENV !== 'test' && !isVercel) {
   server.listen(PORT, () => {
     console.log(`🚀 SmartGov Connect AI server running on port ${PORT}`);
     console.log(`📡 WebSocket server ready for real-time citizen & admin events`);
@@ -83,3 +89,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export { app, server };
+export default app;
