@@ -7,6 +7,27 @@ interface RateLimitStore {
 
 const stores = new Map<string, Map<string, RateLimitStore>>();
 
+export function getClientIp(req: any): string {
+  try {
+    const forwarded = req.headers ? req.headers['x-forwarded-for'] : null;
+    if (typeof forwarded === 'string' && forwarded) {
+      return forwarded.split(',')[0].trim();
+    }
+    if (Array.isArray(forwarded) && forwarded[0]) {
+      return String(forwarded[0]).trim();
+    }
+    if (req.socket?.remoteAddress) {
+      return String(req.socket.remoteAddress);
+    }
+    if (req.connection?.remoteAddress) {
+      return String(req.connection.remoteAddress);
+    }
+    return '127.0.0.1';
+  } catch {
+    return '127.0.0.1';
+  }
+}
+
 export function createRateLimiter(options: { windowMs: number; max: number; message?: string }) {
   const storeId = `${options.windowMs}_${options.max}`;
   if (!stores.has(storeId)) {
@@ -20,7 +41,7 @@ export function createRateLimiter(options: { windowMs: number; max: number; mess
       return next();
     }
 
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const now = Date.now();
     const entry = clientStore.get(ip);
 

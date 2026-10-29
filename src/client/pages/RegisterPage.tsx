@@ -25,36 +25,63 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
-      error('Full name is required.');
+    const trimmedName = name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      error('Validation Error', 'Please enter your full name (at least 2 characters).');
       return;
     }
 
-    if (!phone.trim()) {
-      error('Mobile number is required.');
+    const trimmedPhone = phone.trim();
+    if (!trimmedPhone) {
+      error('Validation Error', 'Mobile number is required.');
       return;
     }
 
-    if (password !== confirmPassword) {
-      error('Passwords do not match.');
+    const digitsOnly = trimmedPhone.replace(/\D/g, '');
+    if (countryCode === '+91') {
+      const isValidIndian =
+        digitsOnly.length === 10 ||
+        (digitsOnly.length === 11 && digitsOnly.startsWith('0')) ||
+        (digitsOnly.length === 12 && digitsOnly.startsWith('91'));
+      if (!isValidIndian) {
+        error('Invalid Mobile Number', 'Please enter a valid 10-digit mobile number.');
+        return;
+      }
+    } else if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      error('Invalid Mobile Number', 'Please enter a valid phone number (7 to 15 digits).');
       return;
     }
 
     if (password.length < 6) {
-      error('Password must be at least 6 characters.');
+      error('Weak Password', 'Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      error('Password Mismatch', 'Passwords do not match. Please verify your password.');
       return;
     }
 
     if (!agreeTerms) {
-      error('You must accept the Terms of Service & Privacy Policy.');
+      error('Terms Required', 'You must agree to the Terms of Service & Privacy Policy.');
       return;
     }
 
     try {
       setLoading(true);
-      const fullPhone = phone.startsWith('+') ? phone.trim() : `${countryCode}${phone.trim()}`;
+      let fullPhone = trimmedPhone.replace(/[\s\-()]/g, '');
+      if (!fullPhone.startsWith('+')) {
+        if (fullPhone.startsWith('0') && fullPhone.length === 11) {
+          fullPhone = `${countryCode}${fullPhone.slice(1)}`;
+        } else if (fullPhone.startsWith('91') && fullPhone.length === 12) {
+          fullPhone = `+${fullPhone}`;
+        } else {
+          fullPhone = `${countryCode}${fullPhone}`;
+        }
+      }
+
       const data = await api.post<{ message: string; user: User; token: string }>('/auth/register', {
-        name: name.trim(),
+        name: trimmedName,
         phone: fullPhone,
         email: email.trim() || undefined,
         password,
@@ -66,7 +93,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
       success('Account Created', 'Welcome to SmartGov Connect AI! You can now file grievances.');
       navigate('/dashboard');
     } catch (err: any) {
-      error('Registration Failed', err.message);
+      error('Registration Failed', err.message || 'Unable to complete registration. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +156,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
                   </div>
                   <input
                     type="tel"
-                    placeholder="9876543210"
+                    placeholder="e.g. 9123456780"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -137,6 +164,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
                   />
                 </div>
               </div>
+              <p className="text-[11px] text-slate-400 mt-1">Enter a 10-digit mobile number</p>
             </div>
 
             {/* Email (Optional) */}

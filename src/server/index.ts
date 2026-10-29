@@ -4,7 +4,7 @@ import path from 'node:path';
 import cors from 'cors';
 import { initSocket } from './socket/handler.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { standardApiLimiter } from './middleware/rateLimit.js';
+import { standardApiLimiter, getClientIp } from './middleware/rateLimit.js';
 
 // Route handlers
 import authRoutes from './routes/auth.js';
@@ -26,6 +26,22 @@ if (!isVercel) {
   initSocket(server);
 }
 
+// Trust reverse proxies (Vercel, AWS, etc.) for correct client IP detection
+app.set('trust proxy', 1);
+
+// Ensure req.ip never throws on serverless environments where req.socket is undefined
+app.use((req, _res, next) => {
+  try {
+    const ip = getClientIp(req);
+    Object.defineProperty(req, 'ip', {
+      configurable: true,
+      enumerable: true,
+      get: () => ip,
+    });
+  } catch {}
+  next();
+});
+
 // Normalize rewritten Vercel URLs
 app.use((req, _res, next) => {
   if (req.query && req.query.__path) {
@@ -46,6 +62,20 @@ app.use(cors({
   origin: true,
   credentials: true,
 }));
+
+// Preserve req.body if already parsed upstream by serverless environments (e.g. Vercel)
+app.use((req, _res, next) => {
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    (req as any)._body = true;
+  } else if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+    try {
+      req.body = JSON.parse(req.body);
+      (req as any)._body = true;
+    } catch {}
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

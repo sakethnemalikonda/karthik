@@ -37,6 +37,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setConnected(false);
     });
 
+    newSocket.on('connect_error', () => {
+      setConnected(false);
+    });
+
     // Real-time notification handler
     newSocket.on('notification:new', (notification: Notification) => {
       toast({

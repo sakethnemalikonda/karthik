@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { db } from '../db/index.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { authRateLimiter } from '../middleware/rateLimit.js';
+import { authRateLimiter, getClientIp } from '../middleware/rateLimit.js';
 import { SecurityService } from '../services/securityService.js';
 import { User, UserRole } from '../../shared/types.js';
 
@@ -13,11 +13,36 @@ const JWT_SECRET = process.env.JWT_SECRET || 'smartgov_dev_jwt_key_2026_super_se
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 // Normalize phone numbers (+91 default for 10-digit Indian numbers)
-function normalizePhone(input: string): string {
-  let cleaned = input.trim().replace(/[\s\-()]/g, '');
+export function normalizePhone(input: string): string {
+  if (!input) return '';
+  let cleaned = input.trim().replace(/[\s\-().]/g, '');
+
+  // If starts with 00, replace with +
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.slice(2);
+  }
+
+  // Strip leading zero if 11 digits starting with 0 e.g. 09876543210 -> +919876543210
+  if (/^0[6-9]\d{9}$/.test(cleaned)) {
+    cleaned = `+91${cleaned.slice(1)}`;
+  }
+
+  // If user entered +910XXXXXXXXXX, strip the extra 0
+  cleaned = cleaned.replace(/^\+910([6-9]\d{9})$/, '+91$1');
+
+  // If user entered double 91 e.g. +9191XXXXXXXXXX or 9191XXXXXXXXXX
+  cleaned = cleaned.replace(/^\+?9191([6-9]\d{9})$/, '+91$1');
+
+  // If 12 digits starting with 91 e.g. 919876543210
+  if (/^91[6-9]\d{9}$/.test(cleaned)) {
+    cleaned = `+${cleaned}`;
+  }
+
+  // Standard 10 digit Indian number e.g. 9876543210
   if (/^[0-9]{10}$/.test(cleaned)) {
     cleaned = `+91${cleaned}`;
   }
+
   return cleaned;
 }
 
@@ -61,6 +86,15 @@ router.post('/register', authRateLimiter, async (req: Request, res: Response) =>
       return res.status(409).json({ error: 'This mobile number is already registered. Please log in instead.' });
     }
 
+    // Check if email already registered (if provided)
+    if (email && typeof email === 'string' && email.trim()) {
+      const cleanEmail = email.trim().toLowerCase();
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+      if (existingEmail) {
+        return res.status(409).json({ error: 'This email address is already registered. Please use another email or log in.' });
+      }
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -70,13 +104,13 @@ router.post('/register', authRateLimiter, async (req: Request, res: Response) =>
 
     const insertStmt = db.prepare(`
       INSERT INTO users (id, phone, name, email, password_hash, role, status, created_at, updated_at, last_login_at)
-      VALUES (?, ?, ?, ?, ?, 'CITIZEN', 'ACTIVE', ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insertStmt.run(userId, normalizedPhone, name.trim(), email ? email.trim().toLowerCase() : null, passwordHash, now, now, now);
+    insertStmt.run(userId, normalizedPhone, name.trim(), email ? email.trim().toLowerCase() : null, passwordHash, 'CITIZEN', 'ACTIVE', now, now, now);
 
     // Log security event
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     SecurityService.logSecurityEvent({
       userId,
       eventType: 'REGISTRATION',
@@ -124,7 +158,7 @@ router.post('/login', authRateLimiter, async (req: Request, res: Response) => {
       FROM users WHERE phone = ?
     `).get(normalizedPhone) as any;
 
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     if (!userRow) {
       SecurityService.logSecurityEvent({
