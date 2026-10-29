@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api.js';
 import { useToast } from '../context/ToastContext.js';
-import { CATEGORY_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../../shared/types.js';
+import { CATEGORY_LABELS, STATUS_LABELS, PRIORITY_LABELS, ComplaintCategory, ComplaintPriority } from '../../shared/types.js';
 import {
   BarChart3,
   Download,
@@ -87,7 +87,7 @@ export const AdminReportsPage: React.FC = () => {
             {data.categories && data.categories.map((c: any) => (
               <div key={c.category} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-800">{CATEGORY_LABELS[c.category] || c.category}</span>
+                  <span className="font-semibold text-slate-800">{CATEGORY_LABELS[c.category as ComplaintCategory] || c.category}</span>
                   <span className="font-mono text-slate-500 font-bold">{c.count} reports</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -119,7 +119,7 @@ export const AdminReportsPage: React.FC = () => {
               return (
                 <div key={p.priority} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-800">{PRIORITY_LABELS[p.priority] || p.priority}</span>
+                    <span className="font-semibold text-slate-800">{PRIORITY_LABELS[p.priority as ComplaintPriority] || p.priority}</span>
                     <span className="font-mono text-slate-500 font-bold">{p.count} reports</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -181,7 +181,7 @@ export const AdminReportsPage: React.FC = () => {
               data.resolutionByCategory.map((res: any) => (
                 <div key={res.category} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
                   <div>
-                    <span className="font-bold text-slate-900">{CATEGORY_LABELS[res.category] || res.category}</span>
+                    <span className="font-bold text-slate-900">{CATEGORY_LABELS[res.category as ComplaintCategory] || res.category}</span>
                     <span className="text-[10px] text-slate-400 block">{res.resolved_count} verified resolutions</span>
                   </div>
                   <div className="text-right">

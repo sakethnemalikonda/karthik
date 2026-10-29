@@ -179,6 +179,7 @@ export interface Complaint {
   imageUrl?: string | null;
   assignedDepartmentId?: string | null;
   assignedDepartment?: Department | null;
+  department?: Department | null;
   recommendedDepartmentId?: string | null;
   recommendedDepartment?: Department | null;
   masterIssueId?: string | null;

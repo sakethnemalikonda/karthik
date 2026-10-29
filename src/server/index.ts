@@ -26,9 +26,24 @@ if (!isVercel) {
   initSocket(server);
 }
 
+// Normalize rewritten Vercel URLs
+app.use((req, _res, next) => {
+  if (req.query && req.query.__path) {
+    req.url = String(req.query.__path);
+    delete req.query.__path;
+  } else if (req.headers['x-matched-path']) {
+    const matched = String(req.headers['x-matched-path']);
+    if (matched && !matched.endsWith('index.ts') && !matched.endsWith('index.js')) {
+      req.url = matched;
+    }
+  }
+  next();
+});
+
 // Middleware
+// origin: true allows credentials safely across all browsers and origins without triggering CORS errors
 app.use(cors({
-  origin: '*',
+  origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -41,7 +56,7 @@ app.use('/uploads', express.static(path.resolve(UPLOAD_DIR)));
 app.use('/api', standardApiLimiter);
 
 // Health check endpoint
-app.get('/api/health', (_req, res) => {
+const healthHandler = (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'healthy',
     system: 'SmartGov Connect AI',
@@ -49,15 +64,27 @@ app.get('/api/health', (_req, res) => {
     environment: isVercel ? 'vercel-serverless' : 'standalone-node',
     timestamp: new Date().toISOString(),
   });
-});
+};
+
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
+app.get('/api', healthHandler);
 
 // API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/complaints', complaintsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/notifications', notificationsRoutes);
+// Mount both with /api and without prefix so requests work regardless of Vercel rewrite prefix stripping
+const apiRouteList = [
+  { path: '/auth', handler: authRoutes },
+  { path: '/users', handler: usersRoutes },
+  { path: '/complaints', handler: complaintsRoutes },
+  { path: '/admin', handler: adminRoutes },
+  { path: '/ai', handler: aiRoutes },
+  { path: '/notifications', handler: notificationsRoutes },
+];
+
+for (const { path: routePath, handler } of apiRouteList) {
+  app.use(`/api${routePath}`, handler);
+  app.use(routePath, handler);
+}
 
 // In standalone mode, serve client bundle from dist
 if (!isVercel) {

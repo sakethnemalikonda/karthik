@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 
 export class ApiError extends Error {
   status: number;
@@ -33,10 +33,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (networkErr: any) {
+    throw new ApiError(
+      networkErr.message || 'Unable to connect to the server. Please check your internet connection.',
+      0
+    );
+  }
 
   if (response.status === 401) {
     // Session expired or invalid
@@ -54,15 +64,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return text as unknown as T;
   }
 
+  const rawText = await response.text();
   let data: any;
   try {
-    data = await response.json();
+    data = JSON.parse(rawText);
   } catch {
-    data = { error: response.statusText };
+    data = {
+      error: rawText.length < 200 && rawText.trim() ? rawText.trim() : (response.statusText || `Request failed (${response.status})`),
+    };
   }
 
   if (!response.ok) {
-    throw new ApiError(data.error || 'A network error occurred. Please try again.', response.status);
+    const errorMsg = data.error || data.message || `A server error occurred (${response.status}).`;
+    throw new ApiError(errorMsg, response.status);
   }
 
   return data as T;

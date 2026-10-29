@@ -34,7 +34,7 @@ router.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =>
 
 // PATCH /api/notifications/:id/read
 router.patch('/:id/read', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const userId = req.user!.id;
 
   const result = db.prepare(`

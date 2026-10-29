@@ -277,7 +277,7 @@ router.get('/complaints', (req: AuthenticatedRequest, res: Response) => {
 
 // POST /api/admin/complaints/:id/assign - Assign department
 router.post('/complaints/:id/assign', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { departmentId, citizenRemark, internalNote } = req.body;
 
   if (!departmentId) {
@@ -364,7 +364,7 @@ router.post('/complaints/:id/assign', (req: AuthenticatedRequest, res: Response)
 
 // POST /api/admin/complaints/:id/status - Update status with validation & history
 router.post('/complaints/:id/status', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { newStatus, citizenRemark, internalNote } = req.body as {
     newStatus: ComplaintStatus;
     citizenRemark?: string;
@@ -461,7 +461,7 @@ router.post('/complaints/:id/status', (req: AuthenticatedRequest, res: Response)
 
 // POST /api/admin/complaints/:id/link-master-issue
 router.post('/complaints/:id/link-master-issue', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { masterIssueId } = req.body;
 
   const complaint = db.prepare('SELECT id, master_issue_id FROM complaints WHERE id = ?').get(id) as any;
@@ -574,7 +574,7 @@ router.get('/users', (req: AuthenticatedRequest, res: Response) => {
 
 // GET /api/admin/users/:id - Citizen profile + complaint history + security events
 router.get('/users/:id', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   const user = db.prepare(`
     SELECT id, phone, name, email, role, status, created_at, updated_at, last_login_at
@@ -607,7 +607,7 @@ router.get('/users/:id', (req: AuthenticatedRequest, res: Response) => {
 
 // PATCH /api/admin/users/:id/status - Disable or reactivate citizen account
 router.patch('/users/:id/status', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { status, reason } = req.body;
 
   if (status !== 'ACTIVE' && status !== 'DISABLED') {
@@ -703,7 +703,7 @@ router.post('/departments', (req: AuthenticatedRequest, res: Response) => {
 
 // PATCH /api/admin/departments/:id
 router.patch('/departments/:id', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { name, headName, contactEmail, contactPhone, active, categories } = req.body;
 
   const current = db.prepare('SELECT * FROM departments WHERE id = ?').get(id) as any;
@@ -812,7 +812,7 @@ router.post('/master-issues', (req: AuthenticatedRequest, res: Response) => {
 
 // PATCH /api/admin/master-issues/:id - Update status or details
 router.patch('/master-issues/:id', (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { status, priority, title, description } = req.body;
 
   const current = db.prepare('SELECT * FROM master_issues WHERE id = ?').get(id) as any;

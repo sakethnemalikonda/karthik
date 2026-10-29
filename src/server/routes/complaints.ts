@@ -289,7 +289,7 @@ router.get('/mine', authenticateToken, (req: AuthenticatedRequest, res: Response
 
 // GET /api/complaints/:id - Detail view with authorization
 router.get('/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   const complaintRow = db.prepare(`
     SELECT
@@ -412,7 +412,7 @@ router.get('/:id', authenticateToken, (req: AuthenticatedRequest, res: Response)
 
 // GET /api/complaints/track/:complaintId - Public complaint tracking shortcut
 router.get('/track/:complaintId', optionalAuth, (req: AuthenticatedRequest, res: Response) => {
-  const { complaintId } = req.params;
+  const complaintId = String(req.params.complaintId);
 
   const complaintRow = db.prepare(`
     SELECT
