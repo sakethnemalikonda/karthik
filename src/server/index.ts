@@ -107,6 +107,15 @@ if (!isVercel) {
 // Global error handling
 app.use(errorHandler);
 
+// Prevent unhandled errors from terminating serverless invocations
+process.on('uncaughtException', (err) => {
+  console.error('SERVER UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('SERVER UNHANDLED REJECTION:', reason);
+});
+
 // Start server if run directly (not in test or Vercel serverless environment)
 if (process.env.NODE_ENV !== 'test' && !isVercel) {
   server.listen(PORT, () => {

@@ -7,8 +7,8 @@ const isVercel = Boolean(process.env.VERCEL);
 const defaultDbPath = isVercel ? '/tmp/smartgov.db' : './data/smartgov.db';
 const defaultUploadDir = isVercel ? '/tmp/uploads' : './uploads';
 
-const DB_PATH = process.env.DATABASE_PATH || defaultDbPath;
-const UPLOAD_DIR = process.env.UPLOAD_DIR || defaultUploadDir;
+const DB_PATH = isVercel ? '/tmp/smartgov.db' : (process.env.DATABASE_PATH || defaultDbPath);
+const UPLOAD_DIR = isVercel ? '/tmp/uploads' : (process.env.UPLOAD_DIR || defaultUploadDir);
 
 // Ensure database and uploads directories exist
 const resolvedDbPath = path.resolve(DB_PATH);
@@ -45,9 +45,27 @@ if (isVercel && !fs.existsSync(resolvedDbPath)) {
 // Initialize SQLite database
 export const db = new DatabaseSync(resolvedDbPath);
 
-// Enable foreign keys and WAL mode for optimal concurrency and integrity
-db.exec('PRAGMA foreign_keys = ON;');
-db.exec('PRAGMA journal_mode = WAL;');
+// Enable foreign keys
+try {
+  db.exec('PRAGMA foreign_keys = ON;');
+} catch (err) {
+  console.warn('Pragma foreign_keys warning:', err);
+}
+
+// WAL mode is NOT supported in AWS Lambda / Vercel /tmp because shared memory primitives fail
+if (!isVercel) {
+  try {
+    db.exec('PRAGMA journal_mode = WAL;');
+  } catch (err) {
+    console.warn('Pragma WAL warning:', err);
+  }
+} else {
+  try {
+    db.exec('PRAGMA journal_mode = MEMORY;');
+  } catch {
+    // Ignore on serverless
+  }
+}
 
 function seedInitialDataIfEmpty() {
   try {
@@ -177,8 +195,12 @@ function seedInitialDataIfEmpty() {
 
 // Initialize tables if not already present
 export function initializeDatabase() {
-  db.exec(SCHEMA_SQL);
-  seedInitialDataIfEmpty();
+  try {
+    db.exec(SCHEMA_SQL);
+    seedInitialDataIfEmpty();
+  } catch (err) {
+    console.error('Database schema init error:', err);
+  }
 }
 
 // Transaction runner helper
